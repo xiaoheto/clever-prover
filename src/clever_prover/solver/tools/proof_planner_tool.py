@@ -2,9 +2,6 @@ import typing
 import logging
 from clever_prover.prompters.simple_prompter import SimplePrompter
 from clever_prover.solver.abs_solver_and_tool import Tool
-from clever_prover.models.abs_model import Model
-from clever_prover.prompters.prompter import Prompter
-from clever_prover.utils import string_utils
 
 class ProofPlannerTool(Tool):
     user_prompt_format_impl = """[NL DESCRIPTION]

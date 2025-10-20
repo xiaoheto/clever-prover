@@ -4,9 +4,13 @@ import hydra
 import os
 import time
 import asyncio
+import logging
 from clever_bench.task import ProblemViewTask, TaskComponent, ValidationResult
 from clever_bench.benchmark import Benchmark
 from clever_prover.main.parse_config import parse_config, parse_impl_generation_class
+from copra.tools.vllm_tools import start_server
+from copra.tools.misc import is_vllm_model
+from clever_prover.main.vllm_utils import _initialize_services
 from itp_interface.tools.log_utils import setup_logger
 
 # @hydra.main(config_path="configs", config_name="few_shot_impl_generation", version_base="1.2")
@@ -34,6 +38,10 @@ def main(cfg):
     problems_to_solve = cfg["problems_to_solve"] if "problems_to_solve" in cfg else "*"
     timeout_in_secs = cfg["timeout_in_secs"] if "timeout_in_secs" in cfg else 600    
     k = cfg["k"] if "k" in cfg else 1
+    impl_gen_model_name = hyper_params["impl_model_settings"].model_name
+    impl_prover_model_name = hyper_params["prover_model_settings"].model_name
+    _initialize_services(model_name=impl_gen_model_name, logger=logger, log_dir=log_dir)
+    _initialize_services(model_name=impl_prover_model_name, logger=logger, log_dir=log_dir)
     if problems_to_solve == "*":
         problems_to_solve = list(range(len(benchmark.problems)))
     else:

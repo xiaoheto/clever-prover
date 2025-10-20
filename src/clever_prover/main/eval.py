@@ -9,6 +9,7 @@ import logging
 from clever_bench.task import ProblemViewTask, TaskComponent, ValidationResult
 from clever_bench.benchmark import Benchmark
 import ray.actor
+from clever_prover.main.vllm_utils import _initialize_services
 from clever_prover.tasks.spec_generation_task import GenerationResult
 from clever_prover.main.checkpoint import CheckpointWrapper, ExecutionInfo
 from clever_prover.main.parse_config import parse_config, parse_spec_generation_class, parse_impl_generation_class, TaskType
@@ -306,7 +307,19 @@ def main(cfg):
     if "proof_dump_file_path" in hyper_params:
         hyper_params["proof_dump_file_path"] = os.path.join(log_dir, hyper_params["proof_dump_file_path"])
     problems_to_solve = cfg["problems_to_solve"] if "problems_to_solve" in cfg else "*"
-    timeout_in_secs = cfg["timeout_in_secs"] if "timeout_in_secs" in cfg else 600    
+    timeout_in_secs = cfg["timeout_in_secs"] if "timeout_in_secs" in cfg else 600
+    if "impl_model_settings" in hyper_params:
+        gen_model_name = hyper_params["impl_model_settings"].model_name
+    elif "spec_model_settings" in hyper_params:
+        gen_model_name = hyper_params["spec_model_settings"].model_name
+    else:
+        raise ValueError("Either impl_model_settings or spec_model_settings must be present in hyper_params")
+    if "prover_model_settings" in hyper_params:
+        prover_model_name = hyper_params["prover_model_settings"].model_name
+    else:
+        raise ValueError("prover_model_settings must be present in hyper_params")
+    _initialize_services(model_name=gen_model_name, logger=logger, log_dir=log_dir)
+    _initialize_services(model_name=prover_model_name, logger=logger, log_dir=log_dir)
     k = cfg["k"] if "k" in cfg else 1
     if problems_to_solve == "*":
         problems_to_solve = [x.problem_id for x in benchmark.problems]

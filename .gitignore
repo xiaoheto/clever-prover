@@ -180,3 +180,4 @@ nohup.out
 # lean4_proj
 .lake
 temptodel*
+.conda*

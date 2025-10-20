@@ -5,10 +5,101 @@ import os
 import time
 import logging
 from copra.agent.rate_limiter import RateLimiter
-from copra.gpts.gpt_access import GptAccess
+from copra.gpts.gpt_access import GptAccess, is_vllm_model
 from copra.gpts.llama_access import LlamaAccess, ServiceDownError
 from copra.prompt_generator.dfs_agent_grammar import DfsAgentGrammar
 from copra.tools.misc import model_supports_openai_api
+
+
+def remove_think_tags(response_text: str) -> str:
+    response_text = response_text.strip()
+    if "<think>" in response_text and "</think>" in response_text:
+        start_idx = response_text.index("<think>") + len("<think>")
+        end_idx = response_text.index("</think>")
+        after_think = response_text[end_idx + len("</think>"):].strip()
+        return after_think
+    return response_text
+
+def get_last_lean_code_block(response_text: str) -> str:
+    response_text = response_text.strip()
+    # Replace all occurrences of ```lean4 with ```lean
+    response_text = response_text.replace("```lean4", "```lean")
+    if "```lean" in response_text:
+        # Find the last occurrence of ```lean
+        start_idx = response_text.rindex("```lean") + len("```lean")
+        end_idx = response_text.rindex("```", start_idx)
+        code_snippet = response_text[start_idx:end_idx].strip()
+        return code_snippet
+    return response_text
+
+def get_last_theorem_in_response(response_text: str, logger: logging.Logger) -> str:
+    response_text = response_text.strip()
+    # Find the last occurrence of "theorem/lemma/example"
+    keywords = ["theorem ", "lemma ", "example "]
+    last_idx = -1
+    for keyword in keywords:
+        idx = response_text.rfind(keyword)
+        if idx > last_idx:
+            last_idx = idx
+    if last_idx != -1:
+        theorem_text = response_text[last_idx:].strip()
+        return theorem_text
+    else:
+        logger.warning("No theorem/lemma/example found in the response.")
+        return "sorry"
+
+def extract_proof_from_theorem(model_name: str, response_text: str, logger: logging.Logger) -> str:
+    response_text = response_text.strip()
+    logger.info(f"Extracting proof from theorem response of {model_name}, response length: {len(response_text)}")
+    logger.info(f"Response Text:\n{response_text}")
+    if not response_text:
+        logger.warning(f"Empty response from {model_name}")
+        return "sorry"
+    else:
+        # Find the first occurrence of `:= by` or `:=` to identify the start of the proof
+        proof_start_idx = -1
+        while ":=" in response_text or len(response_text) > 0:
+            proof_start_idx = response_text.index(":=") + len(":=")
+            strip_leading_by = response_text[proof_start_idx:].lstrip()
+            if strip_leading_by.startswith("by"):
+                response_text = strip_leading_by
+                break
+            else:
+                response_text = strip_leading_by # Keep searching for next occurrence :=*by
+        if len(response_text) == 0:
+            logger.warning(f"No proof found in response from {model_name}")
+            return "sorry"
+    return response_text
+
+def defensive_parse_proof(model_name: str, response_text: str, logger: logging.Logger) -> str:
+    response_text = response_text.strip()
+    logger.info(f"Defensive parsing proof from response of {model_name}, response length: {len(response_text)}")
+    if not response_text:
+        logger.warning(f"Empty response from {model_name}")
+        return "sorry"
+    # First remove any <think>...</think> tags
+    curr_len = len(response_text)
+    response_text = remove_think_tags(response_text)
+    if len(response_text) != curr_len:
+        logger.info(f"Removed <think> tags from response of {model_name}")
+    curr_len = len(response_text)
+    # Next extract the last Lean code block
+    response_text = get_last_lean_code_block(response_text)
+    if len(response_text) != curr_len:
+        logger.info(f"Extracted last Lean code block from response of {model_name}")
+    curr_len = len(response_text)
+    # Next extract the last theorem/lemma/example
+    response_text = get_last_theorem_in_response(response_text, logger)
+    if len(response_text) != curr_len:
+        logger.info(f"Extracted last theorem/lemma/example from response of {model_name}")
+    curr_len = len(response_text)
+    # Finally extract the proof from the theorem
+    response_text = extract_proof_from_theorem(model_name, response_text, logger)
+    if len(response_text) != curr_len:
+        logger.info(f"Extracted proof from theorem/lemma/example from response of {model_name}")
+    logger.info(f"Final extracted proof length: {len(response_text)}")
+    logger.info(f"Extracted Proof:\n{response_text}")
+    return response_text
 
 class SimplePrompter:
     def __init__(self, 
@@ -35,9 +126,10 @@ class SimplePrompter:
             self._gpt_access = LlamaAccess(model_name)
         else:
             self._gpt_access = GptAccess(secret_filepath=secret_filepath, model_name=model_name)
-        self._token_limit_per_min = GptAccess.gpt_model_info[model_name]["token_limit_per_min"]
-        self._request_limit_per_min = GptAccess.gpt_model_info[model_name]["request_limit_per_min"]
-        self._max_token_per_prompt = GptAccess.gpt_model_info[model_name]["max_token_per_prompt"]
+        model_info = GptAccess.gpt_model_info[model_name] if not is_vllm_model(model_name) else GptAccess.gpt_model_info["vllm"]
+        self._token_limit_per_min = model_info["token_limit_per_min"]
+        self._request_limit_per_min = model_info["request_limit_per_min"]
+        self._max_token_per_prompt = model_info["max_token_per_prompt"]
         self._rate_limiter = RateLimiter(self._token_limit_per_min, self._request_limit_per_min)
         self.temperature = temperature
         self.num_sequences = num_sequences

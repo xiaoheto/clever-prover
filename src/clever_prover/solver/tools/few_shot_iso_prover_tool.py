@@ -1,7 +1,7 @@
 import typing
 import logging
 import re
-from clever_prover.prompters.simple_prompter import SimplePrompter
+from clever_prover.prompters.simple_prompter import SimplePrompter, defensive_parse_proof
 from clever_prover.solver.abs_solver_and_tool import Tool
 
 class FewShotIsoProverTool(Tool):
@@ -51,12 +51,13 @@ class FewShotIsoProverTool(Tool):
         logger = logger if logger else self.logger
         # Extract the generated spec using regex
         match = self.generated_proof_regex.search(original_proof)
+        proofstr = ""
         if match:
-            proof = match.group(1).strip()
+            proofstr = match.group(1).strip()
         else:
             self.logger.warning("No generated proof found in the response.")
-            proof = "sorry"
-        return proof
+            proofstr = defensive_parse_proof(self.simple_prompter.model_name, original_proof, logger)
+        return proofstr
 
     def solve_intermediate(self, 
         problem_statement: str, 

@@ -16,11 +16,21 @@ install them using pip:
     ```bash
     pip install -e .
     ```
+>Note: To run open source models via vLLM, you need to also run `pip install copra-theorem-prover[os_models]`
+
 4. **Run install command to setup clever-bench**:
     ```bash
-    clever-bench-install
+    clever-bench-install 
+    # This will build the clever benchmark and install Lean 4 if not already installed
+    # tested on Linux, for other OS please refer to clever-bench README for Lean 4 installation instructions
     ```
->Note: To run open source models via vLLM, you need to also run `pip install copra-theorem-prover[os_models]`
+
+5. [Optional] **For running COPRA baselines you would additionally need to install itp-interface**:
+    ```bash
+    export LEAN_VERSION="4.15.0" # This is the version currently used in clever-bench
+    install-lean-repl
+    install-itp-interface
+    ```
 
 4. **Running the baseline**:
     

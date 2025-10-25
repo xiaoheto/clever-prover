@@ -395,7 +395,13 @@ if __name__ == "__main__":
     os.makedirs(".log/locks", exist_ok=True)
     ray_was_started = False
     print("Starting run_proof_search Pid: ", os.getpid())
-    with FileLock(".log/locks/ray.lock"):
+    temp_lock = FileLock(".log/locks/ray.lock")
+    ray_start_needed = False
+    try:
+        temp_lock.acquire(timeout=10)
+        temp_lock.release()
+        ray_start_needed = True
+    except:
         if os.path.exists(".log/ray/session_latest"):
             with open(".log/ray/session_latest", "r") as f:
                 ray_session = f.read()
@@ -403,19 +409,30 @@ if __name__ == "__main__":
             ray_address = ray_session["address"]
             ray.init(address=ray_address)
             print("Ray was already started")
-        else:
-            ray_session = ray.init(
-                num_cpus=8, 
-                object_store_memory=150*2**30, 
-                _memory=150*2**30, 
-                logging_level=logging.CRITICAL, 
-                ignore_reinit_error=False, 
-                log_to_driver=False, 
-                configure_logging=False,
-                _system_config={"metrics_report_interval_ms": 3*10**8})
-            with open(".log/ray/session_latest", "w") as f:
-                f.write(json.dumps(ray_session))
-            ray_was_started = True
-            print("Ray was started")
-            print("Ray session: ", ray_session)
+            ray_start_needed = False
+    if ray_start_needed:
+        temp_lock.acquire()
+        ray_session = ray.init(
+            num_cpus=8, 
+            object_store_memory=150*2**30, 
+            _memory=150*2**30, 
+            logging_level=logging.CRITICAL, 
+            ignore_reinit_error=False, 
+            log_to_driver=False, 
+            configure_logging=False,
+            _system_config={"metrics_report_interval_ms": 3*10**8})
+        ray_session = dict(ray_session)
+        pid = os.getpid()
+        ray_session["main_pid"] = pid
+        print("Ray session: ", ray_session)
+        with open(".log/ray/session_latest", "w") as f:
+            f.write(json.dumps(ray_session))
+        ray_was_started = True
+        print("Ray was started")
+        print("Ray session: ", ray_session)
     main()
+    if ray_start_needed:
+        # Kill the ray cluster
+        print("Shutting down Ray")
+        ray.shutdown()
+        temp_lock.release()

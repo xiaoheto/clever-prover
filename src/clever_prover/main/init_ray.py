@@ -9,7 +9,7 @@ def main():
     import sys
     import argparse
     argument_parser = argparse.ArgumentParser()
-    argument_parser.add_argument("--num_cpus", type=int, default=100)
+    argument_parser.add_argument("--num_cpus", type=int, default=10)
     argument_parser.add_argument("--object_store_memory", type=int, default=150*2**30)
     argument_parser.add_argument("--memory", type=int, default=300*2**30)
     argument_parser.add_argument("--metrics_report_interval_ms", type=int, default=3*10**8)
@@ -25,38 +25,49 @@ def main():
     print("Initializing Ray")
     print("PID: ", pid)
     ray_session_path = ".log/ray/session_latest" if os.environ.get("RAY_SESSION_PATH") is None else os.environ.get("RAY_SESSION_PATH")
-    with FileLock(".log/locks/ray.lock"):
-        if os.path.exists(ray_session_path):
+    # Try to first acquire the lock
+    file_path = ".log/locks/ray.lock"
+    temp_lock = FileLock(file_path)
+    if os.path.exists(ray_session_path):
+        # try to acquire the lock for reading
+        try:
+            temp_lock.acquire(timeout=10)
+            temp_lock.release()
+        except:
             with open(ray_session_path, "r") as f:
                 ray_session = f.read()
                 ray_session = json.loads(ray_session)
             ray_address = ray_session["address"]
-            ray.init(address=ray_address)
+            # ray.init(address=ray_address)
             print("Ray was already started")
             print("Ray session: ", ray_session)
-        else:
-            ray_session = ray.init(
-                num_cpus=args.num_cpus, 
-                object_store_memory=args.object_store_memory, 
-                _memory=args.memory, 
-                logging_level=logging.CRITICAL, 
-                ignore_reinit_error=False, 
-                log_to_driver=False, 
-                configure_logging=False,
-                _system_config={"metrics_report_interval_ms": args.metrics_report_interval_ms})
-            ray_session = dict(ray_session)
-            ray_session["main_pid"] = pid
-            print("Ray session: ", ray_session)
-            with open(ray_session_path, "w") as f:
-                f.write(json.dumps(ray_session))
-            ray_was_started = True
-            print("Ray was started")
-            print("Ray session: ", ray_session)
-    # Flush the stdout buffer
-    sys.stdout.flush()
-    while ray_was_started:
-        # Keep the ray cluster alive till killed
-        time.sleep(10000)
+            sys.exit(0)
+    with FileLock(file_path):
+        if os.path.exists(ray_session_path):
+            # Remove the ray_session_path
+            os.remove(ray_session_path)
+        ray_session = ray.init(
+            num_cpus=args.num_cpus, 
+            object_store_memory=args.object_store_memory, 
+            _memory=args.memory, 
+            logging_level=logging.CRITICAL, 
+            ignore_reinit_error=False, 
+            log_to_driver=False, 
+            configure_logging=False,
+            _system_config={"metrics_report_interval_ms": args.metrics_report_interval_ms})
+        ray_session = dict(ray_session)
+        ray_session["main_pid"] = pid
+        print("Ray session: ", ray_session)
+        with open(ray_session_path, "w") as f:
+            f.write(json.dumps(ray_session))
+        ray_was_started = True
+        print("Ray was started")
+        print("Ray session: ", ray_session)
+        # Flush the stdout buffer
+        sys.stdout.flush()
+        while ray_was_started:
+            # Keep the ray cluster alive till killed
+            time.sleep(10000)
 
 if __name__ == "__main__":
     main()

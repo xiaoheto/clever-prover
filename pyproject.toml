@@ -27,8 +27,8 @@ dependencies = [
     "matplotlib==3.9.0",
     "dataclasses-json==0.5.7",
     "clever-bench>=1.0.0",
-    "copra-theorem-prover>=1.1.15",
-    "itp-interface>=1.1.11",
+    "copra-theorem-prover>=1.1.16",
+    "itp-interface>=1.1.14",
     "numpy>=2.1.0",
 ]
 

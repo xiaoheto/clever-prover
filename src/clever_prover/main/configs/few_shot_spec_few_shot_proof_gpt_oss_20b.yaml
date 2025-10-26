@@ -22,7 +22,7 @@ params:
     end_tokens: ["[END]"]
   spec_model_settings:
     model_name: "vllm:openai/gpt-oss-20b"
-    secret_path: "."
+    secret_path: "./secret_template.json"
     temperature: 0.75
   prover_prompt_settings:
     system_prompt_path: "src/clever_prover/prompts/baselines/system/FewShotSpecProofGeneration.md"
@@ -32,7 +32,7 @@ params:
     end_tokens: ["[END]"]
   prover_model_settings:
     model_name: "vllm:openai/gpt-oss-20b"
-    secret_path: "."
+    secret_path: "./secret_template.json"
     temperature: 0.75
   proof_planner_prompt_settings: null
   proof_planner_model_settings: null

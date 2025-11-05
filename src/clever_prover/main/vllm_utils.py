@@ -15,6 +15,13 @@ def _initialize_services(
     """
     Initialize required services (vLLM) based on configuration.
     """
+    # Check if the vLLM server base URL is already set
+    # Then don't start another server
+    if "VLLM_BASE_URL" in os.environ:
+        logger.info("vLLM_BASE_URL is already set. Skipping vLLM server initialization.")
+        logger.info(f"VLLM_BASE_URL: {os.environ['VLLM_BASE_URL']}")
+        return
+
     global _vllm_server_process
 
     # Initialize vLLM service if using vLLM model

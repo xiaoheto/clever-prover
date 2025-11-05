@@ -155,6 +155,25 @@ params:
 ```
 See `src/clever_prover/main/configs/few_shot_impl_few_shot_proof_gpt_oss_20b.yaml` and `src/clever_prover/main/configs/few_shot_spec_few_shot_proof_gpt_oss_20b.yaml`.
 
+# Running on server hosting OpenAI compatible APIs:
+
+To run models hosted on servers that provide OpenAI compatible APIs (like vLLM server), you need to set the `VLLM_BASE_URL` environment variable to point to the server URL before running the eval script. For example:
+```bash
+export VLLM_BASE_URL="http://localhost:48000"
+
+```
+If there is a key required for authentication, you can also set the `VLLM_API_KEY` environment variable:
+```bash
+export VLLM_API_KEY="<your-api-key>"
+```
+
+Then, you can use the `vllm:<model-identifier>` pattern in the config file to specify the model hosted on the server. For example:
+```yaml
+spec_model_settings:
+    model_name: "vllm:<your-model-identifier>" # The pattern is vllm:<model-identifier>, even though we do NOT start the vLLM server here, we are just using the OpenAI compatible API it provides
+    secret_path: "<some-valid-json-path>" # Even though we are not using any secret here, just any existing path is needed to satisfy the config structure. Can use "./secret_template.json"
+```
+
 # Secrets
 
 For now we support AWS Bedrock models (Anthropic, DeepSeek), and OpenAI models, and for that you need to create a secret json file with the following structure (make sure that it doesn't get committed to any repository). In this repo, `.secrets` is already added to `.gitignore`, so you can create your secret files there (or somewhere else outside the repo if you prefer).

@@ -27,7 +27,7 @@ install them using pip:
 
 5. [Optional] **For running COPRA baselines you would additionally need to install itp-interface**:
     ```bash
-    export LEAN_VERSION="4.15.0" # This is the version currently used in clever-bench
+    export LEAN_VERSION="4.24.0" # This is the version currently used in clever-bench
     install-lean-repl
     install-itp-interface
     ```

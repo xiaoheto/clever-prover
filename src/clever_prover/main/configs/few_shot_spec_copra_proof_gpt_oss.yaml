@@ -1,0 +1,61 @@
+# @package _global_
+defaults:
+  - override hydra/job_logging: 'disabled'
+
+task_type: SPEC_ISOMORPHISM
+log_dir: ".logs/eval_few_shot_spec_copra_proof_gpt_oss"
+exp_name: "few_shot_spec_copra_proof_gpt_oss"
+spec_generation_strategy: "IsoGenerator"
+# problems_to_solve: [2, 8, 17, 23, 26, 30, 41, 45, 65]
+problems_to_solve: "*"
+k: 1
+timeout_in_secs: 1000
+params:
+  proof_dump_file_path: "proofs.txt"
+  num_spec_samples: 1000
+  num_proof_plan_samples: 1000
+  uses_copra_prover: true
+  spec_prompt_settings:
+    system_prompt_path: "src/clever_prover/prompts/baselines/system/FewShotSpecGeneration.md"
+    example_prompt_path: "src/clever_prover/prompts/baselines/examples/FewShotSpecGeneration.md"
+    max_tokens_per_action: 10000
+    max_history_messages: 0
+    end_tokens: ["[END]"]
+  spec_model_settings:
+    model_name: "vllm:openai/gpt-oss-20b"
+    secret_path: "./secret_template.json"
+    temperature: 0.75
+  prover_prompt_settings:
+    system_prompt_path: "src/clever_prover/prompts/clever_prompts/system/CopraInduction.md"
+    example_prompt_path: "src/clever_prover/prompts/clever_prompts/examples/SpecCopra.md"
+    max_tokens_per_action: 4000
+    max_history_messages: 0
+    end_tokens: ["[END]"]
+  prover_model_settings:
+    model_name: "vllm:openai/gpt-oss-20b"
+    secret_path: "./secret_template.json"
+    temperature: 0.75
+  proof_planner_prompt_settings: null
+  proof_planner_model_settings: null
+  spec_planner_prompt_settings: null
+  spec_planner_model_settings: null
+  # proof_planner_prompt_settings:
+  #   system_prompt_path: "src/clever_prover/prompts/clever_prompts/system/SpecProofPlanner.md"
+  #   example_prompt_path: "src/clever_prover/prompts/clever_prompts/examples/SpecProofPlanner.md"
+  #   max_tokens_per_action: 10000
+  #   max_history_messages: 0
+  #   end_tokens: ["[END]"]
+  # proof_planner_model_settings:
+  #   model_name: "vllm:openai/gpt-oss-20b"
+  #   secret_path: "./secret_template.json"
+  #   temperature: 0.75
+  # spec_planner_prompt_settings:
+  #   system_prompt_path: "src/clever_prover/prompts/clever_prompts/system/ImplementationPlanner.md"
+  #   example_prompt_path: "src/clever_prover/prompts/clever_prompts/examples/ImplementationPlanner.md"
+  #   max_tokens_per_action: 10000
+  #   max_history_messages: 0
+  #   end_tokens: ["[END]"]
+  # spec_planner_model_settings:
+  #   model_name: "gpt-4o"
+  #   secret_path: ".secrets/openai_key.json"
+  #   temperature: 0.75

@@ -393,6 +393,7 @@ if __name__ == "__main__":
     from filelock import FileLock
     import json
     os.makedirs(".log/locks", exist_ok=True)
+    os.makedirs(".log/ray", exist_ok=True)
     ray_was_started = False
     print("Starting run_proof_search Pid: ", os.getpid())
     temp_lock = FileLock(".log/locks/ray.lock")

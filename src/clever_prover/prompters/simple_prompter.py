@@ -4,11 +4,32 @@ import typing
 import os
 import time
 import logging
+import openai
+
+# Newer OpenAI Python SDK builds expose `Omit` but may not export the
+# lowercase `omit` sentinel that current copra releases import directly.
+# Patch it before importing copra so both the main process and Ray workers
+# see a compatible module surface.
+if not hasattr(openai, "omit") and hasattr(openai, "Omit"):
+    openai.omit = openai.Omit()
+
 from copra.agent.rate_limiter import RateLimiter
 from copra.gpts.gpt_access import GptAccess, is_vllm_model
-from copra.gpts.llama_access import LlamaAccess, ServiceDownError
 from copra.prompt_generator.dfs_agent_grammar import DfsAgentGrammar
 from copra.tools.misc import model_supports_openai_api
+
+try:
+    from copra.gpts.llama_access import LlamaAccess, ServiceDownError
+except ImportError:
+    class ServiceDownError(Exception):
+        pass
+
+    class LlamaAccess:
+        def __init__(self, *args, **kwargs):
+            raise ImportError(
+                "copra.gpts.llama_access is unavailable in the installed copra package. "
+                "Use an OpenAI-compatible/vllm model path instead of local llama access."
+            )
 
 
 def remove_think_tags(response_text: str) -> str:
@@ -226,6 +247,57 @@ class SimplePrompter:
             self._rate_limiter.reset()
             self.logger.info("Rate limit reset now.")
 
+    def _complete_chat(self, messages, temperature, tokens_to_generate, stop_tokens):
+        if getattr(self._gpt_access, "is_vllm_model", False):
+            # Some OpenAI-compatible gateways return an empty message body when
+            # the `stop` field is present, even as an empty list. Omit it for
+            # vLLM-style models and let the downstream parser consume [END].
+            vllm_messages = self._gpt_access.handle_thinking_messages(messages)
+            response = self._gpt_access.client.chat.completions.create(
+                model=self._gpt_access.vllm_model_name,
+                messages=vllm_messages,
+                n=self.num_sequences,
+                temperature=temperature,
+                max_tokens=tokens_to_generate,
+                **self._model_params)
+            usage_obj = response.usage
+            prompt_tokens = getattr(usage_obj, "prompt_tokens", 0) if usage_obj is not None else 0
+            completion_tokens = getattr(usage_obj, "completion_tokens", 0) if usage_obj is not None else 0
+            total_tokens = getattr(usage_obj, "total_tokens", prompt_tokens + completion_tokens) if usage_obj is not None else 0
+            self._gpt_access.usage["prompt_tokens"] += prompt_tokens
+            self._gpt_access.usage["completion_tokens"] += completion_tokens
+            self._gpt_access.usage["total_tokens"] += total_tokens
+            responses = [
+                {"role": choice.message.role, "content": choice.message.content or ""}
+                for choice in response.choices
+            ]
+            for i in range(len(responses) - 1):
+                responses[i]["finish_reason"] = "stop"
+            reason = response.choices[-1].finish_reason if len(response.choices) > 0 else "stop"
+            if responses:
+                responses[-1]["finish_reason"] = reason
+            return responses, {
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": total_tokens,
+                "reason": reason,
+            }
+
+        if len(self._model_params) > 0:
+            return self._gpt_access.complete_chat(
+                messages,
+                n=self.num_sequences,
+                temperature=temperature,
+                max_tokens=tokens_to_generate,
+                stop=stop_tokens,
+                **self._model_params)
+        return self._gpt_access.complete_chat(
+            messages,
+            n=self.num_sequences,
+            temperature=temperature,
+            max_tokens=tokens_to_generate,
+            stop=stop_tokens)
+
     def _get_prompt_message(self, message: str, max_tokens_in_prompt: int) -> str:
         assert max_tokens_in_prompt > 0, "Max token per prompt must be greater than 0, please decrease max_tokens_per_action"
         characters_per_token = 4.0
@@ -273,27 +345,18 @@ class SimplePrompter:
         tokens_to_generate = self._max_tokens_per_action
         upper_bound = 10 * self._max_tokens_per_action
         responses = None
+        stop_tokens = [] if getattr(self._gpt_access, "is_vllm_model", False) else self._end_tokens
         while not success and retries > 0:
             try:
                 self._throttle_if_needed(total_token_count)
                 self.logger.info(f"Requesting {tokens_to_generate} tokens to generate, {total_token_count} tokens in input.")
                 self.logger.info(f"Prompt Message:\n{prompt_message['content']}")
                 request_start_time = time.time()
-                if len(self._model_params) > 0:
-                    responses, usage = self._gpt_access.complete_chat(
-                        messages,
-                        n=self.num_sequences,
-                        temperature=temperature,
-                        max_tokens=tokens_to_generate,
-                        stop=self._end_tokens,
-                        **self._model_params)
-                else:
-                    responses, usage = self._gpt_access.complete_chat(
-                        messages,
-                        n=self.num_sequences,
-                        temperature=temperature,
-                        max_tokens=tokens_to_generate,
-                        stop=self._end_tokens)
+                responses, usage = self._complete_chat(
+                    messages,
+                    temperature,
+                    tokens_to_generate,
+                    stop_tokens)
                 request_end_time = time.time()
                 time_taken = request_end_time - request_start_time
                 apporx_output_tokens = usage["total_tokens"] - total_token_count

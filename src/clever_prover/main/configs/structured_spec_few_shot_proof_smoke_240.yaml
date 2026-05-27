@@ -1,0 +1,8 @@
+# @package _global_
+defaults:
+  - structured_spec_few_shot_proof_smoke
+  - _self_
+
+log_dir: ".logs/eval_structured_spec_few_shot_proof_smoke_240"
+exp_name: "structured_spec_few_shot_proof_smoke_240"
+timeout_in_secs: 240

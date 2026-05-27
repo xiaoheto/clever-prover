@@ -281,7 +281,7 @@ class IsoGenerator(SpecGenerationTask):
 
     def _generate_spec_plan(self, problem: LeanProblemView, logger: logging.Logger = None):
         logger = logger if logger else self.logger
-        impl_planner_simple_prompter = SimplePrompter(
+        spec_planner_simple_prompter = SimplePrompter(
             main_sys_prompt_path=self.spec_planner_prompt_settings.system_prompt_path,
             example_conv_prompt_path=self.spec_planner_prompt_settings.example_prompt_path,
             temperature=self.spec_planner_model_settings.temperature,
@@ -292,18 +292,16 @@ class IsoGenerator(SpecGenerationTask):
             end_tokens=self.spec_planner_prompt_settings.end_tokens,
             logger=logger
         )
-        impl_planner = SpecificationPlannerTool(
-            simple_prompter=impl_planner_simple_prompter,
+        spec_planner = SpecificationPlannerTool(
+            simple_prompter=spec_planner_simple_prompter,
             logger=logger
         )
-        implementation_plan = impl_planner.solve_intermediate(
+        spec_plan = spec_planner.solve_intermediate(
             problem_statement=problem.problem_spec_nl,
-            problem_spec=problem.problem_spec_formal_ground_truth,
-            spec_signature=problem.implementation_signature,
-            test_cases=problem.test_cases_lean
+            spec_signature=problem.problem_spec_formal_generated,
         )
-        impl_planner.reset()
-        return implementation_plan
+        spec_planner.reset()
+        return spec_plan
 
     def _generate_proof_plan(self, problem: LeanProblemView, logger: logging.Logger = None):
         proof_planner_simple_prompter = SimplePrompter(

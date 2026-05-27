@@ -1,6 +1,5 @@
 from clever_prover.solver.abs_solver_and_tool import Tool
 from clever_prover.prompters.simple_prompter import SimplePrompter
-from clever_prover.utils import string_utils
 import logging
 
 class SpecificationPlannerTool(Tool):
@@ -32,10 +31,16 @@ class SpecificationPlannerTool(Tool):
         return history
 
     def parse_response(self, response: str) -> str:
+        response = response.strip()
         plan_start_ind = response.find("[SPEC PLAN]")
+        end_ind = response.rfind("[END]")
         if plan_start_ind != -1:
-            plan_response = response[(plan_start_ind + len("[SPEC PLAN]")):]
+            if end_ind != -1 and end_ind > plan_start_ind:
+                plan_response = response[plan_start_ind:end_ind].strip()
+            else:
+                plan_response = response[plan_start_ind:].strip()
         else:
+            self.logger.warning("No [SPEC PLAN] tag found in planner response. Returning raw response.")
             plan_response = response
         return plan_response.strip()
 

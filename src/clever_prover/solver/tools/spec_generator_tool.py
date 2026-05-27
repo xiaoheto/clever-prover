@@ -5,7 +5,7 @@ import re
 
 class SpecGeneratorTool(Tool):
     generated_implementation_regex = re.compile(r"\[GENERATED SPECIFICATION\]\s*([\s\S]*?)\s*\[END\]", re.MULTILINE)
-    def format_impl_prompt(
+    def format_spec_prompt(
             problem_spec_nl : str,
             spec_signature: str,
             spec_plan: str = None,
@@ -14,9 +14,12 @@ class SpecGeneratorTool(Tool):
         f"{problem_spec_nl}\n\n" \
         "[SPECIFICATION SIGNATURE]\n" \
         f"{spec_signature}\n"
-        if spec_plan is not None:
-            prompt += "\n[SPEC PLAN]\n" \
-            f"{spec_plan}"
+        if spec_plan is not None and spec_plan.strip():
+            if spec_plan.lstrip().startswith("[SPEC PLAN]"):
+                prompt += "\n" + spec_plan.strip()
+            else:
+                prompt += "\n[SPEC PLAN]\n" \
+                f"{spec_plan}"
         return prompt
 
     def __init__(self, 
@@ -50,6 +53,9 @@ class SpecGeneratorTool(Tool):
         else:
             self.logger.warning("No generated implementation found in the response.")
             specification = original_implementation
+            end_idx = specification.find("[END]")
+            if end_idx != -1:
+                specification = specification[:end_idx]
         # defensive parsing
         implementation_lean_idx = specification.find("```lean")
         if implementation_lean_idx != -1:
@@ -70,15 +76,13 @@ class SpecGeneratorTool(Tool):
         problem_statement: str, 
         spec_signature: str, 
         spec_plan: str) -> str:
-        # Prompt the model for the plan
-        prompt = SpecGeneratorTool.format_impl_prompt(
+        prompt = SpecGeneratorTool.format_spec_prompt(
             problem_statement,
             spec_signature,
             spec_plan)
-        # Get the model response
         response = self.simple_prompter.run_prompt(prompt)
         generated_text = response[0]["content"]
-        self.logger.info(f"[SPEC GENERATOR] Raw implementation generated:\n{generated_text}")
+        self.logger.info(f"[SPEC GENERATOR] Raw specification generated:\n{generated_text}")
         return self.parse_response(response, self.logger)
 
     def reset(self):
